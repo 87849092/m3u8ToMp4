@@ -19,4 +19,6 @@ public class VideoParamsDTO implements Serializable {
 
     /** 推送目标地址 **/
     private String destVideoPath;
+
+    private String videoName;
 }

@@ -3,7 +3,10 @@ package com.chuxin.m3u8tpmp4.processor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.lang3.StringUtils;
 import org.bytedeco.javacpp.Loader;
+import org.springframework.web.util.UriComponents;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -19,7 +22,6 @@ import static com.chuxin.m3u8tpmp4.processor.VideoPusher.DEST_VIDEO_TYPE;
  */
 @Log4j2
 public class HlsToMp4Processor {
-    public static final String VIDEO_TYPE_MP4 = ".mp4";
     static final SimpleDateFormat SDF = new SimpleDateFormat("yyyyMMddHHmmssSSS");
     static ExecutorService fixedThreadPool = Executors.newFixedThreadPool(2);
     /**
@@ -28,17 +30,18 @@ public class HlsToMp4Processor {
      * @param sourceVideoPath   视频源路径
      * @return
      */
-    public static String process(String sourceVideoPath) {
+    public static String process(String sourceVideoPath, String videoName) {
         log.info("开始进行格式转换");
         if (!checkContentType(sourceVideoPath)) {
             log.info("请输入.m3u8格式的文件");
             return "";
         }
-        // 获取文件名
-        String destVideoPath = getFileName(sourceVideoPath)
-                + "_" + SDF.format(new Date()) + DEST_VIDEO_TYPE;
+        if (StringUtils.isEmpty(videoName)) {
+            videoName = getFileName(sourceVideoPath)
+                    + "_" + SDF.format(new Date()) + DEST_VIDEO_TYPE;
+        }
         // 执行转换逻辑
-        return processToMp4(sourceVideoPath, destVideoPath) ? destVideoPath : "";
+        return processToMp4(sourceVideoPath, videoName) ? videoName : "";
     }
 
     private static String getFileName(String sourceVideoPath) {
@@ -91,7 +94,10 @@ public class HlsToMp4Processor {
         if (StringUtils.isEmpty(filePath)) {
             return false;
         }
-        String type = filePath.substring(filePath.lastIndexOf(".") + 1).toLowerCase();
+        URI uri = UriComponentsBuilder.fromUriString(filePath).build().toUri();
+        // 获取路径后缀
+        String path = uri.getPath();
+        String type = path.substring(path.lastIndexOf(".") + 1).toLowerCase();
         return "m3u8".equals(type);
     }
 }

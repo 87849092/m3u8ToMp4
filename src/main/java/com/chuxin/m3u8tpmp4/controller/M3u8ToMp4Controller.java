@@ -25,11 +25,10 @@ public class M3u8ToMp4Controller {
         Assert.notNull(sourceVideoUrl, "视频源不能为空");
 
         // 将m3u8格式视频转为mp4本地文件（用于转换格式的中间文件）
-        String destFileName = HlsToMp4Processor.process(sourceVideoUrl);
+        String destFileName = HlsToMp4Processor.process(sourceVideoUrl, dataVO.getVideoName());
         if (StringUtils.isEmpty(destFileName)) {
             log.error("操作失败");
         }
-
         // 推送流
         if(StringUtils.isNotEmpty(dataVO.getDestVideoPath())) {
             new VideoPusher().from(destFileName).to(dataVO.getDestVideoPath() + destFileName).go();
