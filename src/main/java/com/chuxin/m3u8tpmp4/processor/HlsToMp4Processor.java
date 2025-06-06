@@ -1,5 +1,6 @@
 package com.chuxin.m3u8tpmp4.processor;
 
+import com.alibaba.fastjson.JSON;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.lang3.StringUtils;
 import org.bytedeco.javacpp.Loader;
@@ -60,14 +61,50 @@ public class HlsToMp4Processor {
 
         List<String> command = new ArrayList<String>();
         //获取JavaCV中的ffmpeg本地库的调用路径
-        String ffmpeg = Loader.load(org.bytedeco.ffmpeg.ffmpeg.class);
-        command.add(ffmpeg);
+        //String ffmpeg = Loader.load(org.bytedeco.ffmpeg.ffmpeg.class);
+        command.add("ffmpeg");
+        //command.add(ffmpeg);
+        command.add("-y");
+        // 使用 CUDA 硬件解码
+        command.add("-hwaccel");
+        command.add("cuda");
+        command.add("-hwaccel_device");
+        command.add("0");
         // 设置支持的网络协议
         command.add("-protocol_whitelist");
         command.add("concat,file,http,https,tcp,tls,crypto");
         command.add("-i");
         command.add(sourceVideoPath);
+
+        // 视频处理参数 - 使用 NVIDIA 硬件编码器
+        command.add("-c:v");
+        command.add("h264_nvenc");
+
+        // 视频缩放（示例缩放到 4K）
+        command.add("-vf");
+        command.add("scale=3840:2160:flags=lanczos");
+
+        command.add("-preset");
+        command.add("p6");
+        command.add("-rc");
+        command.add("vbr_hq");
+        command.add("-b:v");
+        command.add("20M");
+        command.add("-maxrate");
+        command.add("25M");
+
+        // 输出像素格式
+        command.add("-pix_fmt");
+        command.add("yuv420p");
+
+        // 音频转码参数
+        command.add("-c:a");
+        command.add("aac");
+        command.add("-b:a");
+        command.add("192k");
+
         command.add(destVideoPath);
+
         try {
             Process videoProcess = new ProcessBuilder(command).redirectErrorStream(true).start();
             fixedThreadPool.execute(new ReadStreamInfo(videoProcess.getErrorStream()));
