@@ -77,9 +77,10 @@ public class VideoPusher {
             throw new RuntimeException("输入路径为空错误，请指定正确输入路径或输出流");
         }
         // 设置格式
-        recorder.setFormat(DEST_VIDEO_TYPE);
+        recorder.setFormat("mp4");
 
-        recorder.setOption("method", "POST");
+        //recorder.setOption("method", "POST");
+        recorder.setOption("movflags", "frag_keyframe+empty_moov");
         recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
         recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
 
@@ -112,25 +113,31 @@ public class VideoPusher {
             }
         } catch (FrameGrabber.Exception | FrameRecorder.Exception e) {
             e.printStackTrace();
+        }finally {
+            // 确保资源一定被关闭
+            close();
         }
-        close();
+
     }
 
     public void close() {
         try {
             if (recorder != null) {
+                // 确保写入 moov atom
+                recorder.stop();
                 recorder.close();
             }
         } catch (FrameRecorder.Exception e) {
             e.printStackTrace();
-        }
-        try {
-            if (grabber != null) {
-                // 因为grabber的close调用了stop和release，而stop也是调用了release，为了防止重复调用，直接使用release
-                grabber.release();
+        }finally {
+            try {
+                if (grabber != null) {
+                    // 因为grabber的close调用了stop和release，而stop也是调用了release，为了防止重复调用，直接使用release
+                    grabber.release();
+                }
+            } catch (FrameGrabber.Exception e) {
+                e.printStackTrace();
             }
-        } catch (FrameGrabber.Exception e) {
-            e.printStackTrace();
         }
     }
 }

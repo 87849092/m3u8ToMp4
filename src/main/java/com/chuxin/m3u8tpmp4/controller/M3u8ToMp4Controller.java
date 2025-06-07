@@ -29,11 +29,16 @@ public class M3u8ToMp4Controller {
         if (StringUtils.isEmpty(destFileName)) {
             log.error("操作失败");
         }
+
         // 推送流
         if(StringUtils.isNotEmpty(dataVO.getDestVideoPath())) {
-            new VideoPusher().from(destFileName).to(dataVO.getDestVideoPath() + destFileName).go();
-            // 删除中间文件
-            new File(destFileName).delete();
+            try {
+                new VideoPusher().from(destFileName).to(dataVO.getDestVideoPath() + destFileName).go();
+            }finally {
+                // 删除中间文件
+                new File(destFileName).deleteOnExit();
+            }
+
         }
     }
 }
