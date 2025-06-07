@@ -38,7 +38,6 @@ public class M3u8ToMp4Controller {
                 // 删除中间文件
                 new File(destFileName).deleteOnExit();
             }
-
         }
     }
 }
