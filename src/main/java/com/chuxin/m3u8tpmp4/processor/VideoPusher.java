@@ -8,6 +8,8 @@ import org.bytedeco.javacv.*;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author 初心
@@ -42,6 +44,10 @@ public class VideoPusher {
         } else {
             throw new RuntimeException("视频源为空错误，请确定输入有效视频源");
         }
+        // 设置硬件加速参数
+        grabber.setOption("hwaccel", "cuda");
+        grabber.setOption("hwaccel_device", "0");
+
 
         // 开始采集
         try {
@@ -78,9 +84,14 @@ public class VideoPusher {
         }
         // 设置格式
         recorder.setFormat("mp4");
+        recorder.setFrameRate(grabber.getFrameRate());
+        Map<String, String> optionsMap = new HashMap<>();
+        optionsMap.put("method", "POST");
+        optionsMap.put("preset", "p6");
+        optionsMap.put("rc", "vbr_hq");
+        optionsMap.put("movflags", "+faststart");
+        recorder.setOptions(optionsMap);
 
-        //recorder.setOption("method", "POST");
-        recorder.setOption("movflags", "frag_keyframe+empty_moov");
         recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
         recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
 

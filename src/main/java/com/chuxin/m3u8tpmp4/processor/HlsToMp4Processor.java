@@ -7,6 +7,9 @@ import org.bytedeco.javacpp.Loader;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -14,6 +17,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static com.chuxin.m3u8tpmp4.processor.VideoPusher.DEST_VIDEO_TYPE;
 
@@ -59,17 +64,26 @@ public class HlsToMp4Processor {
     private static boolean processToMp4(String sourceVideoPath, String destVideoPath) {
         long startTime = System.currentTimeMillis();
 
-        List<String> command = new ArrayList<String>();
+        // 检查 ffmpeg 是否可用
+        if (!isFfmpegAvailable()) {
+            log.error("ffmpeg 命令未安装或不在环境变量中");
+            return false;
+        }
+
+        List<String> command = new ArrayList<>();
         //获取JavaCV中的ffmpeg本地库的调用路径
         //String ffmpeg = Loader.load(org.bytedeco.ffmpeg.ffmpeg.class);
         command.add("ffmpeg");
         //command.add(ffmpeg);
         command.add("-y");
-        // 使用 CUDA 硬件解码
-        command.add("-hwaccel");
-        command.add("cuda");
-        command.add("-hwaccel_device");
-        command.add("0");
+        // 尝试启用 CUDA
+        boolean useCuda = isCudaAvailable();
+        if (useCuda) {
+            command.add("-hwaccel");
+            command.add("cuda");
+            command.add("-hwaccel_device");
+            command.add("0");
+        }
         // 设置支持的网络协议
         command.add("-protocol_whitelist");
         command.add("concat,file,http,https,tcp,tls,crypto");
@@ -78,7 +92,7 @@ public class HlsToMp4Processor {
 
         // 视频处理参数 - 使用 NVIDIA 硬件编码器
         command.add("-c:v");
-        command.add("h264_nvenc");
+        command.add(useCuda ? "h264_nvenc" : "libx264");
 
         // 视频缩放（示例缩放到 4K）
         command.add("-vf");
@@ -103,17 +117,24 @@ public class HlsToMp4Processor {
         command.add("-b:a");
         command.add("192k");
 
+        // ✅ 在这里添加 faststart，提高 MP4 播放器兼容性
+        command.add("-movflags");
+        command.add("+faststart");
+
         command.add(destVideoPath);
 
         log.error("=====================ffmpeg=======================");
         log.error(String.join(" ", command));
         log.error("=====================ffmpeg=======================");
 
+        Process process = null;
         try {
-            Process videoProcess = new ProcessBuilder(command).redirectErrorStream(true).start();
-            fixedThreadPool.execute(new ReadStreamInfo(videoProcess.getErrorStream()));
-            fixedThreadPool.execute(new ReadStreamInfo(videoProcess.getInputStream()));
-            videoProcess.waitFor();
+            process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start();
+            // 读取输出和错误流，防止阻塞
+            Executors.newSingleThreadExecutor().submit(new ReadStreamInfo(process.getInputStream()));
+            process.waitFor();
 
             log.info("中间转换已完成，生成文件：" + destVideoPath);
             return true;
@@ -123,8 +144,12 @@ public class HlsToMp4Processor {
         } finally {
             long endTime = System.currentTimeMillis();
             log.info("用时:" + (int)((endTime - startTime) / 1000) + "秒");
+            if (process != null) {
+                process.destroy();
+            }
         }
     }
+
 
     /**
      * 检验是否为m3u8文件
@@ -140,5 +165,27 @@ public class HlsToMp4Processor {
         String path = uri.getPath();
         String type = path.substring(path.lastIndexOf(".") + 1).toLowerCase();
         return "m3u8".equals(type);
+    }
+
+    private static boolean isFfmpegAvailable() {
+        try {
+            Process process = new ProcessBuilder("ffmpeg", "-version")
+                    .redirectErrorStream(true).start();
+            return process.waitFor(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isCudaAvailable() {
+        try {
+            Process process = new ProcessBuilder("ffmpeg", "-hwaccels")
+                    .redirectErrorStream(true).start();
+            String output = new BufferedReader(new InputStreamReader(process.getInputStream()))
+                    .lines().collect(Collectors.joining("\n"));
+            return output.contains("cuda");
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
